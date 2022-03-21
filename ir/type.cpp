@@ -26,7 +26,7 @@ VoidType Type::voidTy;
 
 unsigned Type::np_bits() const {
   auto bw = bits();
-  return min(bw, (unsigned)divide_up(bw * bits_poison_per_byte, bits_byte));
+  return bw;//min(bw, (unsigned)divide_up(bw * bits_poison_per_byte, bits_byte));
 }
 
 expr Type::var(const char *var, unsigned bits) const {
