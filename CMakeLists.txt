@@ -19,7 +19,11 @@ if (MSVC)
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O2 /Oi /Zi ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
   set(CMAKE_EXE_LINKER_FLAGS         "/LTCG:INCREMENTAL ${CMAKE_EXE_LINKER_FLAGS}")
 else()
-  set(CMAKE_CXX_FLAGS                "-Wall -Werror -march=native -fPIC ${CMAKE_CXX_FLAGS}")
+  if(BUILD_INTRINSIC_TESTER)
+    set(CMAKE_CXX_FLAGS              "-Wall -Werror -march=native -mavx512f -mavx512bw -mavx512vl -fPIC -Wno-ignored-attributes ${CMAKE_CXX_FLAGS}")
+  else()
+    set(CMAKE_CXX_FLAGS              "-Wall -Werror -march=native -fPIC -Wno-ignored-attributes ${CMAKE_CXX_FLAGS}")
+  endif()
   set(CMAKE_CXX_FLAGS_DEBUG          "-g -Og ${CMAKE_CXX_FLAGS_DEBUG}")
   set(CMAKE_CXX_FLAGS_RELEASE        "-O3 ${CMAKE_CXX_FLAGS_RELEASE}")
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELEASE} -g ${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
@@ -173,8 +177,14 @@ if (BUILD_LLVM_UTILS OR BUILD_TV)
     "llvm_util/utils.cpp"
   )
 
+  set(INTRINSICS_TESTER_SRCS
+    intrinsics_tester/x86Intrin.cpp
+    intrinsics_tester/compareFunctions.cpp
+  )
+  
+  add_library(tester STATIC ${INTRINSICS_TESTER_SRCS})
   add_library(llvm_util STATIC ${LLVM_UTIL_SRCS})
-  set(ALIVE_LIBS_LLVM llvm_util ${ALIVE_LIBS})
+  set(ALIVE_LIBS_LLVM llvm_util tester ${ALIVE_LIBS})
 
   add_llvm_executable(alive-tv
     "tools/alive-tv.cpp"
@@ -183,6 +193,12 @@ if (BUILD_LLVM_UTILS OR BUILD_TV)
   add_llvm_executable(alive-exec
     "tools/alive-exec.cpp"
   )
+
+  if (BUILD_INTRINSIC_TESTER)
+    add_llvm_executable(intrinsics-tester
+      "intrinsics_tester/intrinsics-tester.cpp"  
+  )
+  endif()
 
 else()
   set(LLVM_UTIL_SRCS "")
@@ -225,10 +241,13 @@ add_executable(alive-jobserver
 #add_library(alive2 SHARED ${IR_SRCS} ${SMT_SRCS} ${TOOLS_SRCS} ${UTIL_SRCS} ${LLVM_UTIL_SRCS})
 
 if (BUILD_LLVM_UTILS OR BUILD_TV)
-  llvm_map_components_to_libnames(llvm_libs support core irreader analysis passes transformutils)
+  llvm_map_components_to_libnames(llvm_libs ExecutionEngine orcjit support core irreader analysis passes transformutils native target jitlink)
 #  target_link_libraries(alive2 PRIVATE ${llvm_libs})
   target_link_libraries(alive-tv PRIVATE ${ALIVE_LIBS_LLVM} ${llvm_libs})
   target_link_libraries(alive-exec PRIVATE ${ALIVE_LIBS_LLVM} ${llvm_libs})
+  if (BUILD_INTRINSIC_TESTER)
+    target_link_libraries(intrinsics-tester PRIVATE ${ALIVE_LIBS_LLVM} ${llvm_libs})
+  endif()
 endif()
 
 if (CYGWIN)
@@ -243,6 +262,9 @@ else()
   if (BUILD_LLVM_UTILS OR BUILD_TV)
     target_link_libraries(alive-tv PRIVATE ${Z3_LIBRARIES})
     target_link_libraries(alive-exec PRIVATE ${Z3_LIBRARIES})
+    if (BUILD_INTRINSIC_TESTER)
+      target_link_libraries(intrinsics-tester PRIVATE ${Z3_LIBRARIES})
+    endif()
   endif()
 endif()
 
